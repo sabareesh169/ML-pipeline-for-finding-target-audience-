@@ -7,6 +7,7 @@ Author:
 
 __all__ = ['UserClassifier']
 
+from comp_func import *
 
 class UserClassifier():
     
