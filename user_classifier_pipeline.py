@@ -26,7 +26,8 @@ class UserClassifier():
     def __repr__(self):
         return "I'm a classifier model to predict if a user will click on the data or not. \
                 I'm a Logistic regression model unless you specified otherwise. \
-                Please don't give me null values. I'll get updated later to account for the null values."
+                Imputaion in training set is done by using mean for numerical values and mode for\
+                categorical variables to avoid any leakage of data."
     
     def pre_process(self, data : pd.DataFrame):
         """
@@ -99,6 +100,9 @@ class UserClassifier():
         """
         processing step for test data.
         """
+        
+        #Fill the missing values with mean and mode for numeric and categorical variables.
+        data = data.fillna(self.train_mean).fillna(self.train_mode)
         self.feature_engineering(data)
         data = self.scaler.transform_data(data)
         return self.dummies(data)
@@ -144,10 +148,14 @@ class UserClassifier():
         # Perform validation
         if validation:
             self.model = self.validation()
-        
-        # Predictions on the training data
+                
+        # Storing the statistics of training data (without the target column) in case we need imputation on the test set.
+        self.train_mean = self.data.drop([target], axis=1).mean()
+        self.train_mode = self.data.drop([target], axis=1).mode().iloc[0]
         self.columns = self.data.drop([target], axis=1).columns
-        self.fitted_values = self.predict(data.drop([target], axis=1))
+
+        # Predictions on the training data
+        self.fitted_values = self.predict(data.drop([target], axis=1))  
         
     def predict(self, data : pd.DataFrame, threshold=0.4):
         """
