@@ -5,10 +5,10 @@ Author:
     Sabareesh Mamidipaka
 """
 
-__all__ = ['Ad_Classifier']
+__all__ = ['UserClassifier']
 
 
-class Ad_Classifier():
+class UserClassifier():
     
     def __init__(self, param_grid = None, model = 'log_re'):
         """
@@ -132,12 +132,20 @@ class Ad_Classifier():
         data : training dataframe.
         target: target column of the dataframe.
         """
+        
+        # Make sure the original dataframe is not modified.
         self.data = data.copy()
         self.target = target
+        
+        # Fit on the training data
         self.data = self.process_train(self.data)
         self.model.fit(self.data.drop([target], axis=1), self.data[target])
+        
+        # Perform validation
         if validation:
             self.model = self.validation()
+        
+        # Predictions on the training data
         self.columns = self.data.drop([target], axis=1).columns
         self.fitted_values = self.predict(data.drop([target], axis=1))
         
@@ -147,7 +155,11 @@ class Ad_Classifier():
         
         returns: predictions.
         """
+        
+        # Processing test data
         data = self.process_test(data.copy())
         data = self.fix_columns(data)
+        
+        # Predictions depending on the threshold.
         test_pred_prob = self.model.predict_proba(data)[:,1]
         return np.where(test_pred_prob<threshold, 0, 1)
