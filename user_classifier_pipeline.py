@@ -8,59 +8,15 @@ Author:
 __all__ = ['Ad_Classifier']
 
 
-def get_contain(x, word_list: list):
-    return any([keyword.casefold() in x for keyword in word_list])
-
-def if_influential_words(x, yes_words:list, no_words:list):
-    if any([keyword.casefold() in x for keyword in yes_words]):
-        return 1
-    elif any([keyword.casefold() in x for keyword in no_words]):
-        return -1
-    return 0
-
-def get_param_map(model):
-    param_grid_map = {'log_re': {"C": [0.01, 0.5, 1, 5, 10]}, \
-                  'dec_tree': {'max_depth': [10, 20, 40],
-                              'min_samples_split': [2, 4, 8],
-                              'min_samples_leaf': [1, 3, 6]}, \
-                  'rf': {'n_estimators': [250, 500, 1000],
-                          'max_features': [3, 4, 6],
-                          'max_depth': [10, 20, 40],
-                          'min_samples_split': [2, 4, 8],
-                          'min_samples_leaf': [1, 3, 6]}}
-    return param_grid_map[model]
-    
-def get_model_map(model):
-    model_map = {'log_re': LogisticRegression(random_state=42, penalty="l2", solver='lbfgs'),\
-                 'dec_tree': DecisionTreeClassifier(),\
-                 'rf': RandomForestClassifier()}
-    return model_map[model]
-
-class Data_Scaler(object):
-    
-    def __init__(self, data_frame : pd.DataFrame, cols : list):
-        """
-        Takes in the dataframe and the list with column names that need to be scaled
-        """
-        self.data = data_frame[cols]
-        self.min_data = np.min(self.data)
-        self.max_data = np.max(self.data)
-        self.cols = cols
-    
-    # Scales down the values in the dataframe.
-    def transform_data(self, data_frame_to_scale):
-        data_frame_to_scale[self.cols] = (data_frame_to_scale[self.cols] - self.min_data)/(self.max_data-self.min_data)
-        return data_frame_to_scale
-    
-    # inverse scales the values in the dataframe
-    def inverse_transform_data(self, data_frame_to_inv):
-        data_frame_to_inv[self.cols] = data_frame_to_inv[self.cols]*(self.max_data-self.min_data)+self.min_data
-        return data_frame_to_inv
-    
 class Ad_Classifier():
     
-    def __init__(self, param_grid = None, threshold=0.4, model = 'log_re'):
-
+    def __init__(self, param_grid = None, model = 'log_re'):
+        """
+        param_grid: Parameter grid to perform validation. Given in the form of dict.
+                    Default is None in which case the standard parameter grid is used for validation.
+        model: The model name as a string. Can be one of 'log_re', 'dec_tree' and 'rf'.
+               Default value is 'log_re' corresponding to logistic regression. 
+        """
         if param_grid == None:
             self.param_grid = get_param_map(model)
         else:
@@ -72,26 +28,47 @@ class Ad_Classifier():
                 I'm a Logistic regression model unless you specified otherwise. \
                 Please don't give me null values. I'll get updated later to account for the null values."
     
-    def pre_process(self, data):
+    def pre_process(self, data : pd.DataFrame):
+        """
+        data: dataframe to perform cleaning on.
+        
+        Drops null values, duplicated rows and rows which maybe corrupted.
+        """
         data.dropna(axis=0, inplace=True)
         data = data.drop_duplicates()
         data = data[(data['Age'] >= 18) & (data['Age'] < 100)]
         data = data[(data['Daily Internet Usage'] > data['Daily Time Spent on Site'])]
         
-    def feature_engineering(self, data):
+    def feature_engineering(self, data : pd.DataFrame):
+        """
+        data: dataframe to perform feature engineering.
+
+        Adds extracted information as column and drops unnecessary columns.
+        """
         data['influential_words'] = data['Ad Topic Line'].apply(lambda x: \
                                                                 if_influential_words(x, self.most_used_yes, self.most_used_no))
         data.drop(["Ad Topic Line", "Timestamp", "City"], axis=1, inplace= True)
                
     def scaling(self):
+        """
+        performs the scaling of data inplace.
+        """
         numerical_vars = ["Daily Time Spent on Site", "Area Income", "Daily Internet Usage", "Age"]
         self.scaler = Data_Scaler(self.data, numerical_vars) 
         self.data[numerical_vars] = self.scaler.transform_data(self.data[numerical_vars])
     
-    def dummies(self, data):
+    def dummies(self, data : pd.DataFrame):
+        """
+        data: data containing variables to perform one hot encoding
+        
+        returns: one hot encoded data of all categorical variables
+        """
         return pd.get_dummies(data)
         
-    def find_influential_words(self, data):
+    def find_influential_words(self, data : pd.DataFrame):
+        """
+        data: find most used words in the dataset after removing stopwords affecting positively and negatively.
+        """
         cachedStopWords = stopwords.words("english")
 
         result  = [word for word in data[data[self.target]==1]['Ad Topic Line']]
@@ -108,34 +85,53 @@ class Ad_Classifier():
         self.most_used_no = set(islice(no_cloud.words_, 10))
         self.most_used_yes = set(islice(yes_cloud.words_, 10))
     
-    def process_train(self, data):
+    def process_train(self, data : pd.DataFrame):
+        """
+        processing step for training data.
+        """
         self.pre_process(data)
         self.find_influential_words(data)
         self.feature_engineering(data)
         self.scaling()
         return self.dummies(data)
     
-    def process_test(self, data):
+    def process_test(self, data : pd.DataFrame):
+        """
+        processing step for test data.
+        """
         self.feature_engineering(data)
         data = self.scaler.transform_data(data)
         return self.dummies(data)
     
-    def add_missing_dummy_columns(self, data):
+    def add_missing_dummy_columns(self, data : pd.DataFrame):
+        """
+        data: test data after performing 
+        """
         missing_cols = set(self.columns) - set(data.columns)
         for col in missing_cols:
             data[col] = 0
     
-    def fix_columns(self, data):  
+    def fix_columns(self, data : pd.DataFrame):
+        """
+        data: rearrange the columns of the dataframe to align with the original training set.
+        """
         self.add_missing_dummy_columns(data)
         data = data[self.columns]
         return data
         
     def validation(self):
+        """
+        Perform cross validation and returns the best model.
+        """
         grid_obj = GridSearchCV(self.model, param_grid=self.param_grid, cv=5)
         grid_fit = grid_obj.fit(self.data.drop([target], axis=1), self.data[target])
         return grid_fit.best_estimator_
 
     def fit(self, data : pd.DataFrame, target : str, validation = True):
+        """
+        data : training dataframe.
+        target: target column of the dataframe.
+        """
         self.data = data.copy()
         self.target = target
         self.data = self.process_train(self.data)
@@ -145,7 +141,13 @@ class Ad_Classifier():
         self.columns = self.data.drop([target], axis=1).columns
         self.fitted_values = self.predict(data.drop([target], axis=1))
         
-    def predict(self, data):
+    def predict(self, data : pd.DataFrame, threshold=0.4):
+        """
+        data : test data to predict.
+        
+        returns: predictions.
+        """
         data = self.process_test(data.copy())
         data = self.fix_columns(data)
-        return self.model.predict(data)
+        test_pred_prob = self.model.predict_proba(data)[:,1]
+        return np.where(test_pred_prob<threshold, 0, 1)
