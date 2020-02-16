@@ -4,7 +4,16 @@ Author:
     Sabareesh Mamidipaka
 """
 
+# import necessary functions
 import pandas as pd 
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import GridSearchCV
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from wordcloud import WordCloud
+import re
+import numpy as np
 
 # Function takes each row of the Ad topic and returns 1, -1 and 0 correponding to presence of 
 # influential positive, negative and neutral words.
