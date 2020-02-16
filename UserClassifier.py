@@ -8,6 +8,8 @@ Author:
 __all__ = ['UserClassifier']
 
 from comp_func import *
+from nltk.corpus import stopwords
+from itertools import islice
 
 class UserClassifier():
     
@@ -44,7 +46,6 @@ class UserClassifier():
     def feature_engineering(self, data : pd.DataFrame):
         """
         data: dataframe to perform feature engineering.
-
         Adds extracted information as column and drops unnecessary columns.
         """
         data['influential_words'] = data['Ad Topic Line'].apply(lambda x: \
@@ -79,6 +80,8 @@ class UserClassifier():
         result  = [word for word in data[data[self.target]==0]['Ad Topic Line']]
         no_words = ' '.join(result)
 
+        # WordCloud has been selected to get the most influential words because of their ability
+        # to sort and group words efficiently.
         yes_cloud = WordCloud(width=800, height=500, random_state=21, max_font_size=110, \
                              stopwords=cachedStopWords).generate(yes_words)        
         no_cloud = WordCloud(width=800, height=500, random_state=21, max_font_size=110, \
@@ -129,7 +132,7 @@ class UserClassifier():
         Perform cross validation and returns the best model.
         """
         grid_obj = GridSearchCV(self.model, param_grid=self.param_grid, cv=5)
-        grid_fit = grid_obj.fit(self.data.drop([target], axis=1), self.data[target])
+        grid_fit = grid_obj.fit(self.data.drop([self.target], axis=1), self.data[self.target])
         return grid_fit.best_estimator_
 
     def fit(self, data : pd.DataFrame, target : str, validation = True):
